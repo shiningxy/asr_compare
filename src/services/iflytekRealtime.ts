@@ -166,7 +166,6 @@ export async function streamIflytekRealtime(
       beginStreaming();
     }, 1500);
   };
-
   ws.onmessage = (event) => {
     if (typeof event.data !== 'string') {
       return;
