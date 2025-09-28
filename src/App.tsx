@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HistoryList } from './components/HistoryList';
+import { LiveTranscriptionPanel } from './components/LiveTranscriptionPanel';
 import { ModelManager } from './components/ModelManager';
 import { ResultCard } from './components/ResultCard';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -11,19 +12,41 @@ import { blobToPCM16, fileToPCM16, PCM_BYTES_PER_SECOND } from './utils/audio';
 import { HistoryItem, ModelConfig, ModelRuntimeState } from './types';
 import './App.css';
 
-const DEFAULT_MODELS: ModelConfig[] = [
-  {
+/**
+ * 创建默认模型配置，支持用户参数覆盖
+ * @param userConfig - 用户自定义配置，会覆盖环境变量和默认值
+ * @returns ModelConfig数组
+ * 
+ * @example
+ * // 使用环境变量的默认配置
+ * const defaultModels = createDefaultModels();
+ * 
+ * // 覆盖特定参数
+ * const customModels = createDefaultModels({
+ *   appId: 'custom_app_id',
+ *   name: '自定义讯飞模型'
+ * });
+ */
+export function createDefaultModels(userConfig?: Partial<ModelConfig>): ModelConfig[] {
+  const defaultConfig: ModelConfig = {
     id: 'iflytek-default',
     name: '讯飞实时大模型',
     provider: 'iflytek-realtime',
-    appId: '2c5xxxx',
-    accessKeyId: 'e56f66d462cf99e9xxxxxxxxxxxxxx',
-    accessKeySecret: 'ZDMyYjZjMjBmYjJlxxxxxxx',
-    defaultLang: 'autodialect',
-    sampleRate: 16000,
-    audioEncode: 'pcm_s16le',
-  },
-];
+    appId: import.meta.env.VITE_IFLYTEK_APP_ID,
+    accessKeyId: import.meta.env.VITE_IFLYTEK_ACCESS_KEY_ID,
+    accessKeySecret: import.meta.env.VITE_IFLYTEK_ACCESS_KEY_SECRET,
+    defaultLang: import.meta.env.VITE_IFLYTEK_DEFAULT_LANG,
+    sampleRate: parseInt(import.meta.env.VITE_IFLYTEK_SAMPLE_RATE) || 16000,
+    audioEncode: import.meta.env.VITE_IFLYTEK_AUDIO_ENCODE,
+  };
+
+  // 合并用户配置，用户配置优先
+  const mergedConfig = { ...defaultConfig, ...userConfig };
+  
+  return [mergedConfig];
+}
+
+const DEFAULT_MODELS: ModelConfig[] = createDefaultModels();
 
 function ensureStates(models: ModelConfig[], current: ModelRuntimeState[]) {
   return models.map<ModelRuntimeState>((model) => {
@@ -332,27 +355,10 @@ export default function App() {
       </header>
 
       <main className="content">
+        
+        <LiveTranscriptionPanel models={models} />
+
         <ModelManager models={models} onSave={handleSaveModel} onDelete={handleDeleteModel} />
-
-        <TranscriptionControls
-          selectedFile={selectedFile}
-          onFileChange={handleFileChange}
-          recordingState={recordingState}
-          onStartRecording={handleStartRecording}
-          onStopRecording={handleStopRecording}
-          onResetRecording={handleResetRecording}
-          onCancel={handleCancel}
-          isProcessing={isProcessing}
-          statusMessage={statusMessage}
-        />
-
-        <section className="results-grid">
-          {models.map((model) => (
-            <ResultCard key={model.id} model={model} state={resultsByModel.get(model.id)} />
-          ))}
-        </section>
-
-        <HistoryList items={history} models={models} onClear={handleClearHistory} />
       </main>
 
       <footer className="app-footer">© {new Date().getFullYear()} 语音转写实验工具</footer>

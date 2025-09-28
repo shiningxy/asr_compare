@@ -22,6 +22,26 @@ const LANG_OPTIONS = [
   { label: '多语种自动识别', value: 'autominor' },
 ];
 
+/**
+ * 对敏感信息进行脱敏处理
+ * @param text - 需要脱敏的文本
+ * @param keepStart - 保留开头字符数，默认4
+ * @param keepEnd - 保留结尾字符数，默认4  
+ * @returns 脱敏后的文本
+ */
+function maskSensitiveText(text: string, keepStart: number = 4, keepEnd: number = 4): string {
+  if (!text || text.length <= keepStart + keepEnd) {
+    return text;
+  }
+  
+  const start = text.slice(0, keepStart);
+  const end = text.slice(-keepEnd);
+  const maskLength = Math.min(6, text.length - keepStart - keepEnd); // 最多6个星号
+  const mask = '*'.repeat(maskLength);
+  
+  return `${start}${mask}${end}`;
+}
+
 function emptyForm(): FormState {
   return {
     name: '',
@@ -112,15 +132,15 @@ export function ModelManager({ models, onSave, onDelete }: ModelManagerProps) {
               <dl className="meta-grid">
                 <div>
                   <dt>AppID</dt>
-                  <dd>{model.appId}</dd>
+                  <dd>{maskSensitiveText(model.appId)}</dd>
                 </div>
                 <div>
                   <dt>API Key</dt>
-                  <dd className="mono">{model.accessKeyId}</dd>
+                  <dd className="mono">{maskSensitiveText(model.accessKeyId)}</dd>
                 </div>
                 <div>
                   <dt>API Secret</dt>
-                  <dd className="mono">{model.accessKeySecret}</dd>
+                  <dd className="mono">{maskSensitiveText(model.accessKeySecret)}</dd>
                 </div>
                 <div>
                   <dt>默认语言</dt>
