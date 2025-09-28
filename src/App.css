@@ -130,6 +130,7 @@ body[data-theme='dark'] .button--danger {
   gap: 1rem;
   justify-content: space-between;
   background: rgba(148, 163, 184, 0.08);
+  min-height: 220px;
 }
 
 body[data-theme='dark'] .model-item {

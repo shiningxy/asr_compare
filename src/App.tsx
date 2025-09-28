@@ -43,11 +43,14 @@ export default function App() {
   const [history, setHistory] = useLocalStorage<HistoryItem[]>('asr_compare_history', []);
   const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('asr_compare_theme', 'light');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileVersion, setFileVersion] = useState(0);
   const [runtimeStates, setRuntimeStates] = useState<ModelRuntimeState[]>(() => ensureStates(models, []));
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('准备就绪');
   const abortControllerRef = useRef<AbortController | null>(null);
   const pcmCacheRef = useRef<ArrayBuffer | null>(null);
+  const lastRecordingBlobRef = useRef<Blob | undefined>(undefined);
+  const [recordingReadyVersion, setRecordingReadyVersion] = useState(0);
   const { state: recordingState, start: startRecording, stop: stopRecording, reset: resetRecording } = useRecorder();
 
   useEffect(() => {
@@ -103,6 +106,10 @@ export default function App() {
   };
 
   const handleTranscribe = async () => {
+    if (isProcessing) {
+      setStatusMessage('已有识别任务进行中，请稍候…');
+      return;
+    }
     if (models.length === 0) {
       setStatusMessage('请先配置至少一个模型');
       return;
@@ -253,6 +260,67 @@ export default function App() {
     setHistory([]);
   };
 
+  const handleFileChange = (file: File | null) => {
+    if (isProcessing) {
+      setStatusMessage('当前正在识别，请等待完成后再切换音频文件。');
+      return;
+    }
+    setSelectedFile(file);
+    pcmCacheRef.current = null;
+    if (file) {
+      setStatusMessage(`已选择音频：${file.name}，即将自动开始识别…`);
+      setFileVersion((prev) => prev + 1);
+      resetRecording();
+    } else {
+      setStatusMessage('已清除所选音频文件');
+    }
+  };
+
+  const handleStartRecording = () => {
+    if (isProcessing) {
+      setStatusMessage('当前正在识别，请稍后再开始录音。');
+      return;
+    }
+    setSelectedFile(null);
+    setStatusMessage('录音已开始…');
+    startRecording();
+  };
+
+  const handleStopRecording = () => {
+    stopRecording();
+    setStatusMessage('录音已停止，准备音频中…');
+  };
+
+  const handleResetRecording = () => {
+    resetRecording();
+    setStatusMessage('已重置录音');
+    lastRecordingBlobRef.current = undefined;
+    setRecordingReadyVersion(0);
+  };
+
+  useEffect(() => {
+    if (!recordingState.isRecording && recordingState.blob && recordingState.blob !== lastRecordingBlobRef.current) {
+      lastRecordingBlobRef.current = recordingState.blob;
+      setRecordingReadyVersion((prev) => prev + 1);
+      pcmCacheRef.current = null;
+      setStatusMessage('检测到新的录音，正在准备识别…');
+    }
+  }, [recordingState.blob, recordingState.isRecording]);
+
+  useEffect(() => {
+    if (fileVersion > 0 && selectedFile && !isProcessing) {
+      setFileVersion(0);
+      void handleTranscribe();
+    }
+  }, [fileVersion, selectedFile, isProcessing]);
+
+  useEffect(() => {
+    if (recordingReadyVersion > 0 && recordingState.blob && !recordingState.isRecording && !isProcessing) {
+      setRecordingReadyVersion(0);
+      void handleTranscribe();
+    }
+  }, [recordingReadyVersion, recordingState.blob, recordingState.isRecording, isProcessing]);
+
   return (
     <div className="layout">
       <header className="app-header">
@@ -268,12 +336,11 @@ export default function App() {
 
         <TranscriptionControls
           selectedFile={selectedFile}
-          onFileChange={setSelectedFile}
+          onFileChange={handleFileChange}
           recordingState={recordingState}
-          onStartRecording={startRecording}
-          onStopRecording={stopRecording}
-          onResetRecording={resetRecording}
-          onTranscribe={handleTranscribe}
+          onStartRecording={handleStartRecording}
+          onStopRecording={handleStopRecording}
+          onResetRecording={handleResetRecording}
           onCancel={handleCancel}
           isProcessing={isProcessing}
           statusMessage={statusMessage}

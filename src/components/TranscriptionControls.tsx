@@ -9,7 +9,6 @@ interface TranscriptionControlsProps {
   onStartRecording: () => void;
   onStopRecording: () => void;
   onResetRecording: () => void;
-  onTranscribe: () => void;
   onCancel: () => void;
   isProcessing: boolean;
   statusMessage?: string;
@@ -22,7 +21,6 @@ export function TranscriptionControls({
   onStartRecording,
   onStopRecording,
   onResetRecording,
-  onTranscribe,
   onCancel,
   isProcessing,
   statusMessage,
@@ -32,6 +30,10 @@ export function TranscriptionControls({
   const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     onFileChange(file ?? null);
+    if (event.target) {
+      // 允许连续选择同一文件触发变更
+      event.target.value = '';
+    }
   };
 
   const handleSelectFileClick = () => {
@@ -45,14 +47,14 @@ export function TranscriptionControls({
       <header className="card__header">
         <div>
           <h2 className="card__title">音频输入</h2>
-          <p className="card__subtitle">支持上传音频文件或直接录音，音频将自动转换为 16k PCM</p>
+          <p className="card__subtitle">支持上传音频文件或直接录音，音频将自动转换为 16k PCM 并立即开始识别</p>
         </div>
       </header>
 
       <div className="input-grid">
         <div className="input-tile">
           <h3>上传音频文件</h3>
-          <p>支持常见音频格式，推荐使用 16k 采样率。</p>
+          <p>支持常见音频格式，选择后会自动触发实时转写。</p>
           <div className="file-actions">
             <button className="button button--ghost" type="button" onClick={handleSelectFileClick} disabled={isProcessing}>
               选择文件
@@ -71,7 +73,7 @@ export function TranscriptionControls({
 
         <div className="input-tile">
           <h3>实时录音</h3>
-          <p>点击开始后可直接录制语音，停止录制即可发送。</p>
+          <p>点击开始后即可录制语音，停止后系统会自动开始识别。</p>
           <div className="recording-controls">
             {showRecordButton ? (
               <button className="button button--accent" type="button" onClick={onStartRecording} disabled={isProcessing}>
@@ -97,13 +99,10 @@ export function TranscriptionControls({
       </div>
 
       <footer className="controls-footer">
-        <div className="status-text">{statusMessage}</div>
+        <div className="status-text">{statusMessage ?? '选取音频或停止录音后将自动开始识别。'}</div>
         <div className="actions">
           <button className="button button--ghost" type="button" onClick={onCancel} disabled={!isProcessing}>
             取消任务
-          </button>
-          <button className="button button--primary" type="button" onClick={onTranscribe} disabled={isProcessing}>
-            {isProcessing ? '识别中…' : '开始识别'}
           </button>
         </div>
       </footer>

@@ -91,6 +91,9 @@ export async function streamIflytekRealtime(
   let closed = false;
   let resolvePromise: (value: string) => void;
   let rejectPromise: (reason?: unknown) => void;
+  const chunks = chunkPCMData(pcmBuffer);
+  let streamStarted = false;
+  let handshakeTimer: number | undefined;
 
   const resultPromise = new Promise<string>((resolve, reject) => {
     resolvePromise = resolve;
@@ -102,6 +105,10 @@ export async function streamIflytekRealtime(
       return;
     }
     closed = true;
+    if (handshakeTimer !== undefined) {
+      window.clearTimeout(handshakeTimer);
+      handshakeTimer = undefined;
+    }
     try {
       ws.close();
     } catch (error) {
@@ -124,9 +131,16 @@ export async function streamIflytekRealtime(
 
   onStatus?.('connecting');
 
-  ws.onopen = () => {
+  const beginStreaming = () => {
+    if (streamStarted || closed) {
+      return;
+    }
+    streamStarted = true;
+    if (handshakeTimer !== undefined) {
+      window.clearTimeout(handshakeTimer);
+      handshakeTimer = undefined;
+    }
     onStatus?.('streaming');
-    const chunks = chunkPCMData(pcmBuffer);
     (async () => {
       for (const chunk of chunks) {
         if (closed) {
@@ -146,12 +160,22 @@ export async function streamIflytekRealtime(
     });
   };
 
+  ws.onopen = () => {
+    // 等待服务端返回 started 事件后再发送音频，确保握手流程完成
+    handshakeTimer = window.setTimeout(() => {
+      beginStreaming();
+    }, 1500);
+  };
   ws.onmessage = (event) => {
     if (typeof event.data !== 'string') {
       return;
     }
     try {
       const data = JSON.parse(event.data);
+      if (!streamStarted && (data.action === 'started' || data.msg_type === 'started')) {
+        beginStreaming();
+        return;
+      }
       if (data.action === 'error' || data.msg_type === 'error') {
         const message = data.desc ?? data.data?.desc ?? '服务返回错误';
         onError?.(message);
